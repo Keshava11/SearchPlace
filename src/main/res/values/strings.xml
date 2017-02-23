@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">SearchPlace</string>
+    <string name="connection_failure">Unable to Connect to Google Play Services</string>
+</resources>
