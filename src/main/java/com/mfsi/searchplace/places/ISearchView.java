@@ -7,7 +7,7 @@ import java.util.ArrayList;
  * this interface
  * Created by Bhaskar Pande on 2/21/2017.
  */
-public interface ISearchView {
+public interface ISearchView extends IRxView {
 
 
     void initializeWidgets();

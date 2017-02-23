@@ -6,7 +6,7 @@ import java.util.ArrayList;
  * Class that fetches locations according to a Query must implement this interface
  * Created by Bhaskar Pande on 2/21/2017.
  */
-public interface IPlacesFetcher {
+public interface IPlacesFetcher extends IRxFetcher {
 
     /**
      * requests to fetch locations according to a given Query

@@ -27,8 +27,11 @@ import com.mfsi.searchplace.places.IPlaceResult;
 import com.mfsi.searchplace.places.ISearchView;
 import com.mfsi.searchplace.places.SearchPresenter;
 import com.mfsi.searchplace.utils.UserAlerts;
-
 import java.util.ArrayList;
+import io.reactivex.Observable;
+import io.reactivex.ObservableEmitter;
+import io.reactivex.ObservableOnSubscribe;
+
 
 
 public class MainActivity extends GooglePlayServicesActivity implements ISearchView,
@@ -48,6 +51,8 @@ public class MainActivity extends GooglePlayServicesActivity implements ISearchV
     private SearchPresenter mSearchPresenter;
     private static final int DEFAULT_ZOOM_LEVEL = 13;
     private int mZoomLevel = DEFAULT_ZOOM_LEVEL;
+    private QueryChangeListener mQueryChangeListener;
+
 
 
     @Override
@@ -74,14 +79,14 @@ public class MainActivity extends GooglePlayServicesActivity implements ISearchV
     @Override
     public boolean onQueryTextSubmit(String query) {
         mQueryText = query;
-        Log.i("TAG", "SEARCH QUERY: "+query);
+        Log.i("TAG", "SEARCH QUERY: " + query);
         mSearchPresenter.searchButtonClicked();
         return true;
     }
 
     @Override
     public boolean onQueryTextChange(String newText) {
-        Log.i("TAG", "SEARCH QUERY: "+newText);
+        Log.i("TAG", "SEARCH QUERY: " + newText);
         return true;
     }
 
@@ -114,8 +119,8 @@ public class MainActivity extends GooglePlayServicesActivity implements ISearchV
     public void onMapClick(LatLng latLng) {
 
         mCurrentPosition = latLng;
-        mZoomLevel = (int)mMap.getCameraPosition().zoom;
-        locateLocationInMap(latLng,mMap,mZoomLevel,getProgressInMeters());
+        mZoomLevel = (int) mMap.getCameraPosition().zoom;
+        locateLocationInMap(latLng, mMap, mZoomLevel, getProgressInMeters());
 
     }
 
@@ -180,7 +185,7 @@ public class MainActivity extends GooglePlayServicesActivity implements ISearchV
         }
     }
 
-    public void configureMapForLocation(){
+    public void configureMapForLocation() {
 
         mLastKnownLocation = getDeviceLocation();
         if (mLastKnownLocation != null) {
@@ -210,11 +215,40 @@ public class MainActivity extends GooglePlayServicesActivity implements ISearchV
     public void addListeners() {
 
 
-        mSearchView.setOnQueryTextListener(this);
+        mQueryChangeListener = new QueryChangeListener();
+        mSearchView.setOnQueryTextListener(mQueryChangeListener);
         mKMProgressBar.setOnSeekBarChangeListener(this);
-        Log.i("SEEK BAR","==========>"+mKMProgressBar.getProgress());
+
     }
 
+    @Override
+    public Observable<String> getQueryTextObservable() {
+        return Observable.create(mQueryChangeListener);
+    }
+
+    class QueryChangeListener implements SearchView.OnQueryTextListener,
+            ObservableOnSubscribe<String> {
+
+        private ObservableEmitter<String> mEmitter;
+
+        @Override
+        public void subscribe(ObservableEmitter<String> e) throws Exception {
+            mEmitter = e;
+        }
+
+        @Override
+        public boolean onQueryTextSubmit(String query) {
+            return true;
+        }
+
+        @Override
+        public boolean onQueryTextChange(String newText) {
+            if(mEmitter != null){
+                mEmitter.onNext(newText);
+            }
+            return true;
+        }
+    }
 
 
     @Override
@@ -234,34 +268,27 @@ public class MainActivity extends GooglePlayServicesActivity implements ISearchV
 
     @Override
     public float getSearchMeterRadiusSelected() {
-        return mKMProgressBar != null ? getProgressInMeters(): 0;
+        return mKMProgressBar != null ? getProgressInMeters() : 0;
     }
 
     @Override
     public void displayPlaces(ArrayList<? super IPlaceResult> result) {
-
         ArrayList<String> places = new ArrayList<>();
         inflateDataToDisplay(places, result);
         PlaceListDialog.showPlaceDialog(this, places);
-
     }
 
     private void inflateDataToDisplay(ArrayList<String> places, ArrayList<? super IPlaceResult> result) {
 
-        Log.i("TAG", "SEARCH QUERY: "+result.size());
-
-        for (Object place : result){
-
-            String placeName = ((IPlaceResult)place).getPlaceName();
-            Log.i("TAG", "SEARCH QUERY: "+placeName);
+        for (Object place : result) {
+            String placeName = ((IPlaceResult) place).getPlaceName();
             places.add(placeName);
-
         }
     }
 
     @Override
     public void noPlaceDetected() {
-        Toast.makeText(this,"NO PLACE DETECTED",Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "NO PLACE DETECTED", Toast.LENGTH_SHORT).show();
     }
 
     @Override
@@ -270,13 +297,13 @@ public class MainActivity extends GooglePlayServicesActivity implements ISearchV
         mSearchPresenter = new SearchPresenter();
         mSearchPresenter.setSearchView(this);
 
-        Log.i("TAG", "SEARCH QUERY: "+getGooglePlacesFetcher());
+        Log.i("TAG", "SEARCH QUERY: " + getGooglePlacesFetcher());
 
-        if(getGooglePlacesFetcher() != null) {
+        if (getGooglePlacesFetcher() != null) {
             mSearchPresenter.setPlaceFetcher(getGooglePlacesFetcher());
-            mSearchPresenter.initialize();
-        }else{
-            Toast.makeText(this,"MVP failed", Toast.LENGTH_SHORT).show();
+            mSearchPresenter.initializeForRx();
+        } else {
+            Toast.makeText(this, "MVP failed", Toast.LENGTH_SHORT).show();
         }
 
     }
@@ -293,22 +320,19 @@ public class MainActivity extends GooglePlayServicesActivity implements ISearchV
     @Override
     public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
 
-
-
-
     }
 
     @Override
     public void onStartTrackingTouch(SeekBar seekBar) {
 
-        mZoomLevel = (int)mMap.getCameraPosition().zoom;
+        mZoomLevel = (int) mMap.getCameraPosition().zoom;
 
     }
 
     @Override
     public void onStopTrackingTouch(SeekBar seekBar) {
 
-        locateLocationInMap(mCurrentPosition,mMap,mZoomLevel,getProgressInMeters());
+        locateLocationInMap(mCurrentPosition, mMap, mZoomLevel, getProgressInMeters());
 
     }
 }
