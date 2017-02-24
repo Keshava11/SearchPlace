@@ -2,17 +2,20 @@ package com.mfsi.searchplace.places;
 
 import java.util.ArrayList;
 
+import io.reactivex.ObservableOnSubscribe;
+
 /**
  * Class that fetches locations according to a Query must implement this interface
  * Created by Bhaskar Pande on 2/21/2017.
  */
-public interface IPlacesFetcher extends IRxFetcher {
+public interface IPlacesFetcher{
 
     /**
-     * requests to fetch locations according to a given Query
+     * requests The Observable that will initiate fetch locations according to a given Query. The caller
+     * must subscribe to it to be notified the results.
      * @param searchQuery the Search Query to be used.
      */
-    void fetch(ISearchQuery searchQuery);
+    ObservableOnSubscribe<ArrayList<? super IPlaceResult>> getObservableForFetch(ISearchQuery searchQuery);
 
     /**
      * creates a Query based on the given Parameters
@@ -24,33 +27,7 @@ public interface IPlacesFetcher extends IRxFetcher {
      */
     ISearchQuery frameSearchQuery(double latitude, double longitude, float radius, String queryString);
 
-    /***
-     * The Class that wishes to be notified of the Places Fetch results must implement this interface
-     */
-    interface PlacesFetcherListener{
 
-        /**
-         * callback when the Places Fetcher returns with an array of Location Results based on a Search Query.
-         * @param result an ArrayList of IPlaceResult objetcs
-         */
-        void placesFetched(ArrayList<? super IPlaceResult> result);
 
-        /**
-         * indicates that a Places Fetch attempt has failed
-         */
-        void error();
-    }
-
-    /**
-     * registers to a Place Fetcher a class that must be notified on its results
-     * @param listener Listener reference that implements PlacesFetcherListener
-     */
-    void initialize(PlacesFetcherListener listener);
-
-    /**
-     * deregister the given listener from the list the have added themselves to be notified on the Progress.
-     * @param listener the registered listener
-     */
-    void deregister(PlacesFetcherListener listener);
 
 }

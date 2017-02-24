@@ -35,7 +35,6 @@ import io.reactivex.ObservableOnSubscribe;
 
 
 public class MainActivity extends GooglePlayServicesActivity implements ISearchView,
-        SearchView.OnQueryTextListener,
         OnMapReadyCallback, DialogInterface.OnDismissListener, GoogleMap.OnMapClickListener, SeekBar.OnSeekBarChangeListener {
 
     private static final int MAX_PROGRESS = 100;
@@ -74,20 +73,6 @@ public class MainActivity extends GooglePlayServicesActivity implements ISearchV
         supportMapFragment.getMapAsync(this);
 
 
-    }
-
-    @Override
-    public boolean onQueryTextSubmit(String query) {
-        mQueryText = query;
-        Log.i("TAG", "SEARCH QUERY: " + query);
-        mSearchPresenter.searchButtonClicked();
-        return true;
-    }
-
-    @Override
-    public boolean onQueryTextChange(String newText) {
-        Log.i("TAG", "SEARCH QUERY: " + newText);
-        return true;
     }
 
     @Override
@@ -261,10 +246,6 @@ public class MainActivity extends GooglePlayServicesActivity implements ISearchV
         return mCurrentPosition != null ? mCurrentPosition.longitude : 0;
     }
 
-    @Override
-    public String getSearchStringEntered() {
-        return mQueryText;
-    }
 
     @Override
     public float getSearchMeterRadiusSelected() {
@@ -287,8 +268,8 @@ public class MainActivity extends GooglePlayServicesActivity implements ISearchV
     }
 
     @Override
-    public void noPlaceDetected() {
-        Toast.makeText(this, "NO PLACE DETECTED", Toast.LENGTH_SHORT).show();
+    public void noPlaceDetected(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
     @Override
@@ -333,6 +314,16 @@ public class MainActivity extends GooglePlayServicesActivity implements ISearchV
     public void onStopTrackingTouch(SeekBar seekBar) {
 
         locateLocationInMap(mCurrentPosition, mMap, mZoomLevel, getProgressInMeters());
+
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if(mSearchPresenter != null){
+            mSearchPresenter.cleanUp();
+        }
+
 
     }
 }

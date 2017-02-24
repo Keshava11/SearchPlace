@@ -28,25 +28,101 @@ import com.mfsi.searchplace.places.ISearchQuery;
 import java.util.ArrayList;
 import java.util.Iterator;
 
+import io.reactivex.ObservableEmitter;
+import io.reactivex.ObservableOnSubscribe;
+
 /**
  * Created by Bhaskar Pande on 2/21/2017.
  */
 public class GoogleLocationHelper implements IPlacesFetcher,
-        GoogleApiClient.OnConnectionFailedListener, GoogleApiClient.ConnectionCallbacks,
-        ResultCallback<AutocompletePredictionBuffer>{
+        GoogleApiClient.OnConnectionFailedListener, GoogleApiClient.ConnectionCallbacks{
 
 
     private GoogleApiClient mGoogleApiClient;
     private GooglePlayServicesActivity mHostActivity;
     private int CONNECT_GOOGLE_API = 100;
     private boolean mResolvingConnectionFailure;
-    private ArrayList<PlacesFetcherListener> mPlacesFetcherListener = new ArrayList<>();
+
+
+    class PlaceFetchObservable implements ObservableOnSubscribe<ArrayList<? super IPlaceResult>>,
+            ResultCallback<AutocompletePredictionBuffer> {
+
+        private ISearchQuery mSearchQuery;
+        private ObservableEmitter<ArrayList<? super IPlaceResult>> mObsEmitter;
+
+
+        public PlaceFetchObservable(ISearchQuery query) {
+            mSearchQuery = query;
+        }
+
+        private void notifyResults(ArrayList<? super IPlaceResult> results) {
+
+            mObsEmitter.onNext(results);
+        }
+
+        private void notifyError(String message) {
+
+            Exception created = new Exception(message);
+            mObsEmitter.onError(created);
+
+        }
+
+        @Override
+        public void subscribe(ObservableEmitter<ArrayList<? super IPlaceResult>> emitter) throws Exception {
+            mObsEmitter = emitter;
+            LatLng center = new LatLng(mSearchQuery.getLatitude(), mSearchQuery.getLongitude());
+            LatLng latLngSW = SphericalUtil.computeOffset(center, mSearchQuery.getSearchRadius() * Math.sqrt(2.0), 225);
+            LatLng latLngNE = SphericalUtil.computeOffset(center, mSearchQuery.getSearchRadius() * Math.sqrt(2.0), 45);
+
+            LatLngBounds latLngBounds = new LatLngBounds(latLngSW, latLngNE);
+
+            PendingResult<AutocompletePredictionBuffer> result = Places.GeoDataApi.getAutocompletePredictions(mGoogleApiClient,
+                    mSearchQuery.getSearchString(),
+                    latLngBounds, null);
+            result.setResultCallback(this);
+        }
+
+        @Override
+        public void onResult(@NonNull AutocompletePredictionBuffer autocompletePredictions) {
+
+            ArrayList<? super IPlaceResult> results = new ArrayList<>();
+
+
+            Log.i("tag", "myTag: " + autocompletePredictions);
+
+            if (autocompletePredictions != null) {
+
+                if (autocompletePredictions.getStatus().isSuccess()) {
+
+                    Iterator<AutocompletePrediction> iterator = autocompletePredictions.iterator();
+                    while (iterator.hasNext()) {
+                        AutocompletePrediction prediction = iterator.next();
+                        GoogleSearchResult result = new GoogleSearchResult();
+                        String name = prediction.getPrimaryText(null).toString();
+                        Log.i("TAG", "SEARCH COMPLETED: " + name);
+                        result.setPlaceName(name);
+                        results.add(result);
+                    }
+                    notifyResults(results);
+                } else {
+                    notifyError(autocompletePredictions.getStatus().getStatusMessage());
+                }
+            } else {
+                notifyError("Null Returned: Reason Unknown");
+            }
+        }
+    }
 
 
     @Override
-    public void deregister(PlacesFetcherListener listener) {
-        mPlacesFetcherListener.remove(listener);
+    public ObservableOnSubscribe<ArrayList<? super IPlaceResult>> getObservableForFetch(ISearchQuery searchQuery) {
+
+        PlaceFetchObservable placeFetchObservable = new PlaceFetchObservable(searchQuery);
+        return placeFetchObservable;
+
     }
+
+
 
     @Override
     public ISearchQuery frameSearchQuery(double latitude, double longitude, float radius, String queryString) {
@@ -61,76 +137,9 @@ public class GoogleLocationHelper implements IPlacesFetcher,
         return googleSearchQuery;
     }
 
-    @Override
-    public void fetch(ISearchQuery searchQuery) {
 
-        LatLng center = new LatLng(searchQuery.getLatitude(), searchQuery.getLongitude());
-        LatLng latLngSW = SphericalUtil.computeOffset(center,searchQuery.getSearchRadius()*Math.sqrt(2.0), 225);
-        LatLng latLngNE = SphericalUtil.computeOffset(center,searchQuery.getSearchRadius()*Math.sqrt(2.0), 45);
 
-        LatLngBounds latLngBounds = new LatLngBounds(latLngSW, latLngNE);
 
-        PendingResult<AutocompletePredictionBuffer> result = Places.GeoDataApi.getAutocompletePredictions(mGoogleApiClient, searchQuery.getSearchString(),
-                latLngBounds,null);
-        result.setResultCallback(this);
-
-    }
-
-    @Override
-    public void onResult(@NonNull AutocompletePredictionBuffer autocompletePredictions) {
-
-        ArrayList<? super IPlaceResult> results = new ArrayList<>();
-
-        if(autocompletePredictions != null){
-
-            if(autocompletePredictions.getStatus().isSuccess()){
-
-                Iterator<AutocompletePrediction> iterator = autocompletePredictions.iterator();
-                while(iterator.hasNext()){
-                    AutocompletePrediction prediction = iterator.next();
-                    GoogleSearchResult result = new GoogleSearchResult();
-
-                    String name = prediction.getPrimaryText(null).toString();
-                    Log.i("TAG","SEARCH COMPLETED: "+name);
-                    result.setPlaceName(name);
-                    results.add(result);
-                }
-                notifyResults(results);
-            }else{
-                notifyError();
-            }
-        }else{
-            notifyError();
-        }
-
-    }
-
-    private void notifyResults(ArrayList<? super IPlaceResult> results){
-
-        for (PlacesFetcherListener listener : mPlacesFetcherListener) {
-            if(listener != null){
-                listener.placesFetched(results);
-            }
-        }
-
-    }
-
-    private void notifyError(){
-
-        for (PlacesFetcherListener listener : mPlacesFetcherListener) {
-            if(listener != null){
-                listener.error();
-            }
-        }
-
-    }
-
-    @Override
-    public void initialize(PlacesFetcherListener listener) {
-        if(listener != null && !mPlacesFetcherListener.contains(listener)) {
-            mPlacesFetcherListener.add(listener);
-        }
-    }
 
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
@@ -168,7 +177,6 @@ public class GoogleLocationHelper implements IPlacesFetcher,
     }
 
 
-
     public void onGooglePlayResponse(GooglePlayServicesActivity googlePlayServicesActivity, int requestCode, int resultCode) {
 
         if (requestCode == CONNECT_GOOGLE_API) {
@@ -201,7 +209,6 @@ public class GoogleLocationHelper implements IPlacesFetcher,
     public GoogleApiClient getGoogleClientApi() {
         return mGoogleApiClient;
     }
-
 
 
 }
